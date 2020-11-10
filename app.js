@@ -1,10 +1,26 @@
 (function () {
   let dataConnection = null;
+  let mediaConnection = null;
+
   const peersEl = document.querySelector(".peers");
   const sendButtonEl = document.querySelector(".send-new-message-button");
   const newMessageEl = document.querySelector(".new-message");
+  const listPeersButtonEl = document.querySelector(".list-all-peers-button");
   const messagesEl = document.querySelector(".messages");
   const theirVideoContainer = document.querySelector(".video-container.them");
+  const startVideoButton = theirVideoContainer.querySelector(".start");
+  const stopVideoButton = theirVideoContainer.querySelector(".stop");
+  const videoOfThemEl = document.querySelector(".video-container.them video");
+  const videoOfMeEl = document.querySelector(".video-container.me video");
+
+  // Display video of me.
+  navigator.mediaDevices
+    .getUserMedia({ audio: false, video: true })
+    .then((stream) => {
+      const video = document.querySelector(".video-container.me video");
+      video.muted = true;
+      video.srcObject = stream;
+    });
 
   const printMessage = (text, who) => {
     const messageEl = document.createElement("div");
@@ -48,8 +64,7 @@
 
   // Print peer id on connection 'open' event.
   peer.on("open", (id) => {
-    const myPeerIdEl = document.querySelector(".my-peer-id");
-    myPeerIdEl.innerText = id;
+    document.querySelector(".my-peer-id").innerText = id;
   });
 
   // Error message.
@@ -67,8 +82,28 @@
     document.dispatchEvent(event);
   });
 
+  // Event listener for incoming video call.
+  peer.on("call", (incomingCall) => {
+    mediaConnection && mediaConnection.close();
+
+    // Change state on start/stop button.
+    startVideoButton.classList.remove("active");
+    stopVideoButton.classList.add("active");
+
+    // Answer incoming call.
+    navigator.mediaDevices
+      .getUserMedia({ audio: false, video: true })
+      .then((myStream) => {
+        incomingCall.answer(myStream);
+        mediaConnection = incomingCall;
+        mediaConnection.on("stream", (theirStream) => {
+          videoOfThemEl.muted = true;
+          videoOfThemEl.srcObject = theirStream;
+        });
+      });
+  });
+
   // Event listener for click "Refresh list".
-  const listPeersButtonEl = document.querySelector(".list-all-peers-button");
   listPeersButtonEl.addEventListener("click", () => {
     peer.listAllPeers((peers) => {
       // Add peers to list.
@@ -166,10 +201,29 @@
   newMessageEl.addEventListener("keyup", sendMessage);
 
   // Event listener for click 'Start video chat'.
-  const startVideoButton = theirVideoContainer.querySelector(".start");
-  const stopVideoButton = theirVideoContainer.querySelector(".stop");
   startVideoButton.addEventListener("click", () => {
     startVideoButton.classList.remove("active");
     stopVideoButton.classList.add("active");
+
+    //Start video call with remote peer.
+    navigator.mediaDevices
+      .getUserMedia({ audio: false, video: true })
+      .then((myStream) => {
+        mediaConnection && mediaConnection.close();
+        console.log(dataConnection);
+        const theirPeerId = dataConnection.peer;
+        mediaConnection = peer.call(theirPeerId, myStream);
+        mediaConnection.on("stream", (theirStream) => {
+          videoOfThemEl.muted = true;
+          videoOfThemEl.srcObject = theirStream;
+        });
+      });
+  });
+
+  // Event listener for click 'Hang up'.
+  stopVideoButton.addEventListener("click", () => {
+    stopVideoButton.classList.remove("active");
+    startVideoButton.classList.add("active");
+    mediaConnection && mediaConnection.close();
   });
 })(); //Stäng tomma funktionen.
